@@ -69,11 +69,13 @@ class PVPlant:
         self.total_embodied_co2 = self.module_count * self.pv_module.total_embodied_co2
 
         # Production estimation from PVGIS
-        # The DataFrame columns are always standardized as 'hoy' and 'value', so column_map is not needed.
         df, _ = self._get_pvgis_data()
         # Ensure 'value' is numeric before dividing
         if not df.empty and 'value' in df.columns:
             df["value"] = pd.to_numeric(df["value"], errors="coerce") / 1000.0  # kWh
+        # Ensure only 'hoy' and 'value' columns are present
+        if not df.empty:
+            df = df[[col for col in ['hoy', 'value'] if col in df.columns]]
         annual_production = df["value"].sum() if not df.empty and 'value' in df.columns else 0.0
         self.hourly_result = HourlyData(
             df=df,
@@ -133,8 +135,8 @@ class PVPlant:
         base_url = "https://re.jrc.ec.europa.eu/api/v5_2/seriescalc"
         peakpower = max(self.installed_capacity, 0.01)  # PVGIS min 0.01 kW
 
-        # Convert azimuth to PVGIS convention (0 = South)
-        pvgis_aspect = (180 + self.azimuth) % 360
+        # Convert azimuth to PVGIS convention (0 = South, [-180, 180])
+        pvgis_aspect = ((self.azimuth + 180) % 360) - 180
 
         params = {
             "lat": self.lat,
@@ -151,6 +153,7 @@ class PVPlant:
 
         url_params = urllib.parse.urlencode(params)
         full_url = f"{base_url}?{url_params}"
+        print(f"PVGIS API URL: {full_url}")
 
         try:
             print(f"Requesting PVGIS URL: {full_url}")

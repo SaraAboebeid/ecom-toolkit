@@ -1,4 +1,4 @@
-
+#depricated #replaced by hourly data class
 import pandas as pd
 from typing import Any, Dict, Optional, Union
 from enum import Enum

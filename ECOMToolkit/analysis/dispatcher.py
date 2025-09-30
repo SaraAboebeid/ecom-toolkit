@@ -168,27 +168,64 @@ class ECOMDispatcher:
 
     def export_graph_json(self, path):
         """
-        Export the dispatch graph (nodes, edges, hourly flows) to a D3.js-compatible JSON file.
-        Each edge includes a 'flow' array of hourly values.
+        Export the dispatch graph (nodes, edges, hourly flows, all node/edge details, and KPIs) to a JSON file.
+        Each edge includes a 'flow' array of hourly values and all edge attributes.
+        All node attributes are included. KPIs are included if available.
         """
         import json
+        # Collect all node details
         nodes = []
         for node, data in self.G.nodes(data=True):
-            nodes.append({
-                "id": node,
-                "type": data.get("type", "entity"),
-                "name": getattr(data.get("obj", None), "name", node)
-            })
+            node_dict = {"id": node}
+            # Add all node attributes
+            for k, v in data.items():
+                if k == "obj" and v is not None:
+                    # Extract all public attributes from the class instance (excluding methods and private)
+                    obj_attrs = {}
+                    for attr in dir(v):
+                        if not attr.startswith("_") and not callable(getattr(v, attr)):
+                            try:
+                                val = getattr(v, attr)
+                                # Try to serialize, else convert to string
+                                json.dumps(val)
+                                obj_attrs[attr] = val
+                            except Exception:
+                                obj_attrs[attr] = str(getattr(v, attr))
+                    node_dict.update(obj_attrs)
+                else:
+                    try:
+                        json.dumps(v)  # test if serializable
+                        node_dict[k] = v
+                    except Exception:
+                        node_dict[k] = str(v)
+            nodes.append(node_dict)
+        # Collect all edge details
         links = []
         for from_node, to_node, data in self.G.edges(data=True):
-            link = {
-                "source": from_node,
-                "target": to_node,
-                "type": data.get("type", "flow"),
-                "flow": [float(f) for f in data.get("flow", [])]
-            }
+            link = {"source": from_node, "target": to_node}
+            for k, v in data.items():
+                if k == "flow":
+                    link[k] = [float(f) for f in v]
+                else:
+                    try:
+                        json.dumps(v)
+                        link[k] = v
+                    except Exception:
+                        link[k] = str(v)
             links.append(link)
-        graph = {"nodes": nodes, "links": links}
+        # Collect KPIs if available
+        kpis = None
+        if self.kpis:
+            try:
+                # If KPIResult is a dataclass or has __dict__
+                if hasattr(self.kpis, "__dict__"):
+                    kpis = {k: (float(v) if isinstance(v, (int, float, np.floating, np.integer)) else v)
+                             for k, v in self.kpis.__dict__.items()}
+                else:
+                    kpis = dict(self.kpis)
+            except Exception:
+                kpis = str(self.kpis)
+        graph = {"nodes": nodes, "links": links, "kpis": kpis}
         with open(path, "w", encoding="utf-8") as f:
             json.dump(graph, f, indent=2)
 

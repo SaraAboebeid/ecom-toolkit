@@ -125,7 +125,7 @@ class Building:
 
     def __init__(self, name, footprints, building_type, occupancy_schedule,
                  electric_demand,
-                 PV_plant=None, owner=None, convert_schedule_to_df=False, breps=None, number_of_floors=None):
+                 PV_plant=None, owner=None, convert_schedule_to_df=False, breps=None, number_of_floors=None, point=None):
 
         # footprints: list of curves/surfaces/breps; breps: list of breps (optional)
         self.area = 0.0
@@ -172,6 +172,9 @@ class Building:
         self.total_energy_demand = self._calc_total_energy_demand()
         self.total_pv_capacity = self._calc_total_pv_capacity()
         self.total_installed_capacity = self.total_pv_capacity
+        self.point = point if isinstance(point, rg.Point3d) else None
+        self.x = self.point.X if self.point else None
+        self.y = self.point.Y if self.point else None
 
 
     def _calc_area_from_footprints(self, footprints, number_of_floors=None):
@@ -271,7 +274,7 @@ class Building:
         total = 0.0
         for pv in self.PV_plant:
             try:
-                total += (pv.rating / 1000.0) * pv.number_panels
+                total += pv.installed_capacity
             except AttributeError:
                 continue
         return total
@@ -297,8 +300,8 @@ class Building:
                 "Num Footprints: {}\n"
                 "Total Area: {:.1f} m2\n"
                 "Total Energy Demand: {:.1f} kWh/year\n"
-                "Total PV Capacity: {:.1f} kW\n"
-                "Total Installed Capacity: {:.1f} (kW + kWh)"
+                "Total PV Capacity: {:.1f} kWp"
+                
                 .format(
                     self.name,
                     self.owner,
@@ -307,5 +310,5 @@ class Building:
                     self.area,
                     self.total_energy_demand,
                     self.total_pv_capacity,
-                    self.total_installed_capacity
+                    
                 ))
